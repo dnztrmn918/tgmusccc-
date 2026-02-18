@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from pyrogram.errors import PeerIdInvalid, ChannelInvalid
 from bot.utils.youtube import search_youtube, download_audio, is_youtube_cookie_error
 from bot.utils.soundcloud import search_soundcloud, download_soundcloud_audio
 from bot.utils.queue_manager import queue_manager
@@ -7,6 +8,11 @@ from bot.core.call import call_manager
 import os
 
 async def play_command(client: Client, message: Message):
+    # Peer ID hatasını önlemek için chat'i çözümle
+    try:
+        await client.get_chat(message.chat.id)
+    except (PeerIdInvalid, ChannelInvalid, ValueError, KeyError):
+        pass  # Hata olsa bile devam et
     """/play komutu - Müzik çal (YouTube + SoundCloud fallback)"""
     
     # Şarkı adını al

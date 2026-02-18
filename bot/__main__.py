@@ -1,11 +1,26 @@
 import asyncio
 import logging
 from pyrogram import Client, idle
-from pyrogram.errors import ApiIdInvalid, AccessTokenInvalid
+from pyrogram.errors import ApiIdInvalid, AccessTokenInvalid, PeerIdInvalid
 from config import Config
 from bot.handlers import register_handlers
 from bot.core.call import call_manager
 import os
+
+# Pyrogram hata yakalama için monkey patch
+import pyrogram.dispatcher as dispatcher
+original_handler_worker = dispatcher.Dispatcher.handler_worker
+
+async def patched_handler_worker(self, lock):
+    try:
+        await original_handler_worker(self, lock)
+    except (ValueError, KeyError, PeerIdInvalid) as e:
+        if "Peer id invalid" in str(e) or "ID not found" in str(e):
+            pass  # Bu hatayı yoksay
+        else:
+            raise
+
+dispatcher.Dispatcher.handler_worker = patched_handler_worker
 
 # Logging yapılandırması
 logging.basicConfig(

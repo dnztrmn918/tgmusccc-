@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from pyrogram.errors import PeerIdInvalid, ChannelInvalid
 from bot.utils.queue_manager import queue_manager
 from bot.core.call import call_manager
 import os
@@ -7,6 +8,11 @@ from config import Config
 
 async def pause_command(client: Client, message: Message):
     """/pause komutu - Müziği duraklat"""
+    try:
+        await client.get_chat(message.chat.id)
+    except (PeerIdInvalid, ChannelInvalid, ValueError, KeyError):
+        pass
+    
     chat_id = message.chat.id
     
     if not call_manager.is_playing(chat_id):
