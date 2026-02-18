@@ -30,98 +30,111 @@ class YouTubeDownloader:
     
     async def search(self, query: str) -> Optional[Dict]:
         """Invidious API ile YouTube'da şarkı ara"""
-        try:
-            session = await self.get_session()
-            instance = self.get_instance()
-            
-            url = f"{instance}/api/v1/search"
-            params = {
-                'q': query,
-                'type': 'video',
-                'sort_by': 'relevance'
-            }
-            
-            async with session.get(url, params=params, timeout=10) as response:
-                if response.status != 200:
-                    return None
-                
-                data = await response.json()
-                
-                if not data or len(data) == 0:
-                    return None
-                
-                video = data[0]
-                
-                # Süreyi dönüştür
-                duration = int(video.get('lengthSeconds', 0))
-                minutes = duration // 60
-                seconds = duration % 60
-                duration_str = f"{minutes:02d}:{seconds:02d}"
-                
-                return {
-                    'title': video.get('title', 'Bilinmeyen'),
-                    'url': f"https://youtube.com/watch?v={video['videoId']}",
-                    'video_id': video.get('videoId', ''),
-                    'duration': duration_str,
-                    'thumbnail': video.get('videoThumbnails', [{}])[0].get('url', ''),
-                }
         
-        except Exception as e:
-            print(f"Invidious arama hatası: {e}")
-            return None
+        # Tüm instancelari dene
+        for instance in INVIDIOUS_INSTANCES:
+            try:
+                session = await self.get_session()
+                
+                url = f"{instance}/api/v1/search"
+                params = {
+                    'q': query,
+                    'type': 'video',
+                    'sort_by': 'relevance'
+                }
+                
+                async with session.get(url, params=params, timeout=10) as response:
+                    if response.status != 200:
+                        print(f"{instance} yanıt vermedi, sonrakini deniyor...")
+                        continue
+                    
+                    data = await response.json()
+                    
+                    if not data or len(data) == 0:
+                        continue
+                    
+                    video = data[0]
+                    
+                    # Süreyi dönüştür
+                    duration = int(video.get('lengthSeconds', 0))
+                    minutes = duration // 60
+                    seconds = duration % 60
+                    duration_str = f"{minutes:02d}:{seconds:02d}"
+                    
+                    print(f"✅ {instance} ile bulundu!")
+                    
+                    return {
+                        'title': video.get('title', 'Bilinmeyen'),
+                        'url': f"https://youtube.com/watch?v={video['videoId']}",
+                        'video_id': video.get('videoId', ''),
+                        'duration': duration_str,
+                        'thumbnail': video.get('videoThumbnails', [{}])[0].get('url', ''),
+                    }
+            
+            except Exception as e:
+                print(f"Invidious arama hatası ({instance}): {e}")
+                continue
+        
+        # Hiçbir instance çalışmadı
+        return None
     
     async def download(self, video_id: str) -> Optional[str]:
         """Invidious API ile ses dosyasını indir"""
-        try:
-            session = await self.get_session()
-            instance = self.get_instance()
-            
-            # Video bilgilerini al
-            url = f"{instance}/api/v1/videos/{video_id}"
-            
-            async with session.get(url, timeout=10) as response:
-                if response.status != 200:
-                    return None
-                
-                data = await response.json()
-                
-                # En iyi ses formatını bul
-                audio_formats = [f for f in data.get('adaptiveFormats', []) 
-                               if f.get('type', '').startswith('audio')]
-                
-                if not audio_formats:
-                    return None
-                
-                # En yüksek kaliteli ses formatını seç
-                audio_format = max(audio_formats, key=lambda x: x.get('bitrate', 0))
-                audio_url = audio_format.get('url')
-                
-                if not audio_url:
-                    return None
-                
-                # Ses dosyasını indir
-                download_path = f"{Config.DOWNLOAD_DIR}/{video_id}.mp3"
-                
-                async with session.get(audio_url, timeout=60) as audio_response:
-                    if audio_response.status != 200:
-                        return None
-                    
-                    # Dosyayı kaydet
-                    with open(download_path, 'wb') as f:
-                        while True:
-                            chunk = await audio_response.content.read(8192)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                
-                if os.path.exists(download_path):
-                    return download_path
-                
-                return None
         
-        except Exception as e:
-            print(f"Invidious indirme hatası: {e}")
-            return None
+        # Tüm instancelari dene
+        for instance in INVIDIOUS_INSTANCES:
+            try:
+                session = await self.get_session()
+                
+                # Video bilgilerini al
+                url = f"{instance}/api/v1/videos/{video_id}"
+                
+                async with session.get(url, timeout=10) as response:
+                    if response.status != 200:
+                        print(f"{instance} video bilgisi alınamadı, sonrakini deniyor...")
+                        continue
+                    
+                    data = await response.json()
+                    
+                    # En iyi ses formatını bul
+                    audio_formats = [f for f in data.get('adaptiveFormats', []) 
+                                   if f.get('type', '').startswith('audio')]
+                    
+                    if not audio_formats:
+                        continue
+                    
+                    # En yüksek kaliteli ses formatını seç
+                    audio_format = max(audio_formats, key=lambda x: x.get('bitrate', 0))
+                    audio_url = audio_format.get('url')
+                    
+                    if not audio_url:
+                        continue
+                    
+                    # Ses dosyasını indir
+                    download_path = f"{Config.DOWNLOAD_DIR}/{video_id}.mp3"
+                    
+                    async with session.get(audio_url, timeout=60) as audio_response:
+                        if audio_response.status != 200:
+                            continue
+                        
+                        # Dosyayı kaydet
+                        with open(download_path, 'wb') as f:
+                            while True:
+                                chunk = await audio_response.content.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                    
+                    if os.path.exists(download_path):
+                        print(f"✅ {instance} ile indirildi!")
+                        return download_path
+            
+            except Exception as e:
+                print(f"Invidious indirme hatası ({instance}): {e}")
+                continue
+        
+        # Hiçbir instance çalışmadı
+        return None
     
     async def close(self):
         """Session'ı kapat"""
