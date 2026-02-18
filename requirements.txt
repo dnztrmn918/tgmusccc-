@@ -1,7 +1,6 @@
 pyrogram==2.0.106
 TgCrypto==1.2.5
 py-tgcalls==0.9.7
-yt-dlp>=2024.12.13
 python-dotenv
 aiohttp
 aiofiles
