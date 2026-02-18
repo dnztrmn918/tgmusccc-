@@ -1,17 +1,11 @@
 import asyncio
 import logging
 from pyrogram import Client, idle
-from pyrogram.errors import ApiIdInvalid, AccessTokenInvalid
+from pyrogram.errors import ApiIdInvalid, AccessTokenInvalid, FloodWait
 from config import Config
 from bot.handlers import register_handlers
 from bot.core.call import call_manager
 import os
-
-# Pyrogram hata yakalama için
-try:
-    from pyrogram.errors import PeerIdInvalid
-except ImportError:
-    PeerIdInvalid = ValueError
 
 # Logging yapılandırması
 logging.basicConfig(
@@ -56,13 +50,25 @@ async def main():
         register_handlers(bot_client)
         logger.info("✅ Handler'lar kaydedildi")
         
-        # Bot'u başlat
-        await bot_client.start()
-        logger.info(f"✅ Bot başlatıldı: @{bot_client.me.username}")
+        # Bot'u başlat (FloodWait kontrolü ile)
+        try:
+            await bot_client.start()
+            logger.info(f"✅ Bot başlatıldı: @{bot_client.me.username}")
+        except FloodWait as e:
+            logger.warning(f"⏳ FloodWait: {e.value} saniye bekleniyor...")
+            await asyncio.sleep(e.value + 5)
+            await bot_client.start()
+            logger.info(f"✅ Bot başlatıldı: @{bot_client.me.username}")
         
         # User client'ı başlat
-        await user_client.start()
-        logger.info("✅ User client başlatıldı")
+        try:
+            await user_client.start()
+            logger.info("✅ User client başlatıldı")
+        except FloodWait as e:
+            logger.warning(f"⏳ FloodWait (user): {e.value} saniye bekleniyor...")
+            await asyncio.sleep(e.value + 5)
+            await user_client.start()
+            logger.info("✅ User client başlatıldı")
         
         # PyTgCalls'u başlat
         await call_manager.init(user_client)
@@ -89,6 +95,9 @@ async def main():
         
     except (ApiIdInvalid, AccessTokenInvalid) as e:
         logger.error(f"❌ Geçersiz API bilgileri: {e}")
+    except FloodWait as e:
+        logger.error(f"❌ FloodWait hatası: {e.value} saniye beklemeniz gerekiyor")
+        logger.info(f"⏰ Yaklaşık {e.value // 60} dakika sonra tekrar deneyin")
     except ValueError as e:
         logger.error(f"❌ Yapılandırma hatası: {e}")
     except Exception as e:
@@ -96,10 +105,16 @@ async def main():
         import traceback
         traceback.print_exc()
     finally:
-        if bot_client:
-            await bot_client.stop()
-        if user_client:
-            await user_client.stop()
+        try:
+            if bot_client and bot_client.is_connected:
+                await bot_client.stop()
+        except:
+            pass
+        try:
+            if user_client and user_client.is_connected:
+                await user_client.stop()
+        except:
+            pass
         logger.info("⚠️ Bot durduruldu")
 
 def get_bot_client():
