@@ -2,7 +2,6 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import Config
 
-@Client.on_message(filters.command("start") & filters.private)
 async def start_command(client: Client, message: Message):
     """/start komutu - Özel mesajlarda hoş geldin mesajı"""
     
@@ -52,5 +51,4 @@ Ben bir Telegram Müzik Botu. YouTube ve SoundCloud'dan müzik çalabilirim.
     
     await message.reply_text(text, reply_markup=buttons)
 
-start_command = filters.create(lambda _, __, m: m.text and m.text.startswith("/start"))
 start_command = Client.on_message(filters.command("start") & filters.private)(start_command)
