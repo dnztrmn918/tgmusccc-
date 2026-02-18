@@ -1,54 +1,34 @@
-from pyrogram import Client, filters
+from pyrogram import Client
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import Config
 
 async def start_command(client: Client, message: Message):
-    """/start komutu - Özel mesajlarda hoş geldin mesajı"""
+    """/start komutu - Hoş geldin mesajı"""
     
-    user = message.from_user
+    buttons = []
     
-    # Hoş geldin mesajı
-    text = f"""
-🎵 **Merhaba {user.mention}!**
-
-Ben bir Telegram Müzik Botu. YouTube ve SoundCloud'dan müzik çalabilirim.
-
-**🎶 Kullanılabilir Komutlar:**
-
-▫️ `/play <şarkı adı>` - Müzik oynat
-▫️ `/pause` - Müziği duraklat
-▫️ `/resume` - Müziğe devam et
-▫️ `/stop` - Müziği durdur ve sesli sohbetten ayrıl
-▫️ `/queue` - Şu anki müzik kuyruğunu gör
-
-**💡 Nasıl Kullanılır?**
-1. Beni grubunuza ekleyin
-2. Beni yönetici yapın
-3. Sesli sohbete katılın
-4. `/play <şarkı adı>` komutunu kullanın
-
-✨ İyi eğlenceler!
-    """.strip()
+    if Config.SUPPORT_GROUP:
+        buttons.append(InlineKeyboardButton("👥 Destek Grubu", url=Config.SUPPORT_GROUP))
+    if Config.SUPPORT_CHANNEL:
+        buttons.append(InlineKeyboardButton("📢 Kanal", url=Config.SUPPORT_CHANNEL))
     
-    # Butonlar
-    buttons = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("📚 Komutlar", callback_data="help"),
-                InlineKeyboardButton("ℹ️ Hakkında", callback_data="about")
-            ]
-        ]
+    keyboard = InlineKeyboardMarkup([buttons]) if buttons else None
+    
+    await message.reply_text(
+        f"🎵 **Müzik Botu'na Hoş Geldiniz!**\n\n"
+        f"YouTube'dan müzik arayıp grup sesli sohbetlerinde çalabilirsiniz.\n\n"
+        f"**🎯 Komutlar:**\n"
+        f"`/play <şarkı adı>` - Müzik ara ve çal\n"
+        f"`/pause` - Müziği duraklat\n"
+        f"`/resume` - Müziğe devam et\n"
+        f"`/skip` - Şarkıyı atla\n"
+        f"`/stop` - Müziği durdur\n"
+        f"`/queue` - Kuyruğu gör\n"
+        f"`/cookie` - Cookie bilgisi\n\n"
+        f"**💡 Kullanım:**\n"
+        f"1. Botu grubunuza ekleyin\n"
+        f"2. Bota yönetici yetkisi verin\n"
+        f"3. `/play şarkı adı` yazın\n\n"
+        f"✨ İyi dinlemeler!",
+        reply_markup=keyboard
     )
-    
-    # Destek linkleri varsa ekle
-    if Config.SUPPORT_GROUP or Config.SUPPORT_CHANNEL:
-        support_buttons = []
-        if Config.SUPPORT_GROUP:
-            support_buttons.append(InlineKeyboardButton("👥 Destek Grubu", url=Config.SUPPORT_GROUP))
-        if Config.SUPPORT_CHANNEL:
-            support_buttons.append(InlineKeyboardButton("📢 Kanal", url=Config.SUPPORT_CHANNEL))
-        buttons.inline_keyboard.append(support_buttons)
-    
-    await message.reply_text(text, reply_markup=buttons)
-
-start_command = Client.on_message(filters.command("start") & filters.private)(start_command)

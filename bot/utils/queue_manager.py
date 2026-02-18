@@ -1,11 +1,17 @@
 from typing import Dict, List, Optional
 from config import Config
+import os
 
 class QueueManager:
-    def __init__(self):
-        self.queues: Dict[int, List[Dict]] = {}
+    _instance = None
     
-    def add_to_queue(self, chat_id: int, song: Dict):
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.queues: Dict[int, List[Dict]] = {}
+        return cls._instance
+    
+    def add_to_queue(self, chat_id: int, song: Dict) -> bool:
         """Kuyruğa şarkı ekle"""
         if chat_id not in self.queues:
             self.queues[chat_id] = []
@@ -29,13 +35,29 @@ class QueueManager:
     def skip_song(self, chat_id: int) -> Optional[Dict]:
         """Şarkıyı atla"""
         if chat_id in self.queues and self.queues[chat_id]:
-            self.queues[chat_id].pop(0)
+            # Mevcut şarkıyı çıkar
+            skipped = self.queues[chat_id].pop(0)
+            
+            # Dosyayı sil
+            try:
+                if os.path.exists(skipped['file_path']):
+                    os.remove(skipped['file_path'])
+            except:
+                pass
+            
             return self.queues[chat_id][0] if self.queues[chat_id] else None
         return None
     
     def clear_queue(self, chat_id: int):
         """Kuyruğu temizle"""
         if chat_id in self.queues:
+            # Tüm dosyaları sil
+            for song in self.queues[chat_id]:
+                try:
+                    if os.path.exists(song['file_path']):
+                        os.remove(song['file_path'])
+                except:
+                    pass
             self.queues[chat_id] = []
     
     def get_queue_position(self, chat_id: int, file_path: str) -> int:
@@ -49,6 +71,15 @@ class QueueManager:
     def remove_from_queue(self, chat_id: int, position: int) -> bool:
         """Kuyruktan şarkı çıkar"""
         if chat_id in self.queues and 0 <= position < len(self.queues[chat_id]):
-            self.queues[chat_id].pop(position)
+            removed = self.queues[chat_id].pop(position)
+            # Dosyayı sil
+            try:
+                if os.path.exists(removed['file_path']):
+                    os.remove(removed['file_path'])
+            except:
+                pass
             return True
         return False
+
+# Global singleton instance
+queue_manager = QueueManager()

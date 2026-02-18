@@ -4,6 +4,7 @@ from pyrogram import Client, idle
 from pyrogram.errors import ApiIdInvalid, AccessTokenInvalid
 from config import Config
 from bot.handlers import register_handlers
+from bot.core.call import call_manager
 import os
 
 # Logging yapılandırması
@@ -17,14 +18,20 @@ logger = logging.getLogger(__name__)
 if not os.path.exists(Config.DOWNLOAD_DIR):
     os.makedirs(Config.DOWNLOAD_DIR)
 
+# Global clients
+bot_client = None
+user_client = None
+
 async def main():
+    global bot_client, user_client
+    
     try:
         # Yapılandırmayı doğrula
         Config.validate()
         logger.info("✅ Yapılandırma doğrulandı")
         
         # Bot client'ini oluştur
-        app = Client(
+        bot_client = Client(
             "music_bot",
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
@@ -32,7 +39,7 @@ async def main():
         )
         
         # User client'ini oluştur (müzik çalmak için gerekli)
-        user = Client(
+        user_client = Client(
             "music_user",
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
@@ -40,22 +47,35 @@ async def main():
         )
         
         # Handler'ları kaydet
-        register_handlers(app)
+        register_handlers(bot_client)
         logger.info("✅ Handler'lar kaydedildi")
         
         # Bot'u başlat
-        await app.start()
-        logger.info(f"✅ Bot başlatıldı: @{app.me.username}")
+        await bot_client.start()
+        logger.info(f"✅ Bot başlatıldı: @{bot_client.me.username}")
         
         # User client'ı başlat
-        await user.start()
+        await user_client.start()
         logger.info("✅ User client başlatıldı")
         
+        # PyTgCalls'u başlat
+        await call_manager.init(user_client)
+        logger.info("✅ PyTgCalls başlatıldı")
+        
         # Bot bilgilerini göster
-        me = await app.get_me()
+        me = await bot_client.get_me()
         logger.info(f"♫ Bot Adı: {me.first_name}")
         logger.info(f"♫ Bot Username: @{me.username}")
         logger.info(f"♫ Bot ID: {me.id}")
+        
+        # Cookie durumunu kontrol et
+        cookies_path = os.path.join(os.path.dirname(__file__), '..', 'cookies.txt')
+        if os.path.exists(cookies_path):
+            logger.info("🍪 Cookie dosyası mevcut - YouTube erişimi geliştirilmiş")
+        else:
+            logger.warning("⚠️ Cookie dosyası bulunamadı - Bazı videolar çalışmayabilir")
+            logger.info("💡 İpucu: cookies.txt dosyasını ana dizine ekleyin")
+        
         logger.info("\n♫ Müzik Botu hazır! Komutlar için /start yazın")
         
         # Bot'u aktif tut
@@ -67,15 +87,23 @@ async def main():
         logger.error(f"❌ Yapılandırma hatası: {e}")
     except Exception as e:
         logger.error(f"❌ Beklenmeyen hata: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
-        if 'app' in locals():
-            await app.stop()
-        if 'user' in locals():
-            await user.stop()
+        if bot_client:
+            await bot_client.stop()
+        if user_client:
+            await user_client.stop()
         logger.info("⚠️ Bot durduruldu")
+
+def get_bot_client():
+    return bot_client
+
+def get_user_client():
+    return user_client
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("\n⚠️ Bot kapatiliyor...")
+        logger.info("\n⚠️ Bot kapatılıyor...")
