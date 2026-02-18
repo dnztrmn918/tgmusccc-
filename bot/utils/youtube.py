@@ -39,7 +39,7 @@ class YouTubeDownloader:
                 video = info['entries'][0]
                 
                 # Süreyi dönüştür
-                duration = video.get('duration', 0)
+                duration = int(video.get('duration', 0))  # Float'u int'e çevir
                 minutes = duration // 60
                 seconds = duration % 60
                 duration_str = f"{minutes:02d}:{seconds:02d}"
