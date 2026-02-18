@@ -1,113 +1,132 @@
-import yt_dlp
+import aiohttp
 import asyncio
 from typing import Optional, Dict
 import os
 from config import Config
 
+# Invidious public instances
+INVIDIOUS_INSTANCES = [
+    "https://inv.nadeko.net",
+    "https://invidious.privacydev.net",
+    "https://iv.melmac.space",
+]
+
 class YouTubeDownloader:
     def __init__(self):
-        self.ydl_opts = {
-            'format': 'bestaudio/best',
-            'outtmpl': f'{Config.DOWNLOAD_DIR}/%(id)s.%(ext)s',
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-            'nocheckcertificate': True,
-            'ignoreerrors': False,
-            'no_color': True,
-            'age_limit': None,
-            'geo_bypass': True,
-            'cookiesfrombrowser': ('chrome',),  # Chrome cookie kullan
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Sec-Fetch-Mode': 'navigate',
-            },
-            'extractor_args': {
-                'youtube': {
-                    'skip': ['dash', 'hls'],
-                    'player_skip': ['configs'],
-                    'player_client': ['android_music', 'android', 'web'],
-                    'max_comments': [0],
-                }
-            },
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }],
-        }
+        self.session = None
+        self.current_instance = 0
+    
+    async def get_session(self):
+        """Aiohttp session oluştur"""
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+        return self.session
+    
+    def get_instance(self):
+        """Invidious instance al"""
+        instance = INVIDIOUS_INSTANCES[self.current_instance]
+        self.current_instance = (self.current_instance + 1) % len(INVIDIOUS_INSTANCES)
+        return instance
     
     async def search(self, query: str) -> Optional[Dict]:
-        """YouTube'da şarkı ara"""
+        """Invidious API ile YouTube'da şarkı ara"""
         try:
-            search_opts = {
-                'format': 'bestaudio/best',
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': True,
-                'default_search': 'ytsearch1',
-                'nocheckcertificate': True,
-                'geo_bypass': True,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                    'Accept-Language': 'en-us,en;q=0.5',
-                },
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android_music', 'android', 'web'],
-                        'skip': ['hls', 'dash'],
-                    }
-                },
+            session = await self.get_session()
+            instance = self.get_instance()
+            
+            url = f"{instance}/api/v1/search"
+            params = {
+                'q': query,
+                'type': 'video',
+                'sort_by': 'relevance'
             }
             
-            with yt_dlp.YoutubeDL(search_opts) as ydl:
-                info = await asyncio.to_thread(ydl.extract_info, f"ytsearch1:{query}", download=False)
-                
-                if not info or 'entries' not in info or not info['entries']:
+            async with session.get(url, params=params, timeout=10) as response:
+                if response.status != 200:
                     return None
                 
-                video = info['entries'][0]
+                data = await response.json()
+                
+                if not data or len(data) == 0:
+                    return None
+                
+                video = data[0]
                 
                 # Süreyi dönüştür
-                duration = int(video.get('duration', 0))  # Float'u int'e çevir
+                duration = int(video.get('lengthSeconds', 0))
                 minutes = duration // 60
                 seconds = duration % 60
                 duration_str = f"{minutes:02d}:{seconds:02d}"
                 
                 return {
                     'title': video.get('title', 'Bilinmeyen'),
-                    'url': f"https://youtube.com/watch?v={video['id']}",
+                    'url': f"https://youtube.com/watch?v={video['videoId']}",
+                    'video_id': video.get('videoId', ''),
                     'duration': duration_str,
-                    'thumbnail': video.get('thumbnail', ''),
-                    'id': video.get('id', ''),
+                    'thumbnail': video.get('videoThumbnails', [{}])[0].get('url', ''),
                 }
         
         except Exception as e:
-            print(f"YouTube arama hatası: {e}")
+            print(f"Invidious arama hatası: {e}")
             return None
     
-    async def download(self, url: str) -> Optional[str]:
-        """Şarkıyı indir"""
+    async def download(self, video_id: str) -> Optional[str]:
+        """Invidious API ile ses dosyasını indir"""
         try:
-            with yt_dlp.YoutubeDL(self.ydl_opts) as ydl:
-                info = await asyncio.to_thread(ydl.extract_info, url, download=True)
+            session = await self.get_session()
+            instance = self.get_instance()
+            
+            # Video bilgilerini al
+            url = f"{instance}/api/v1/videos/{video_id}"
+            
+            async with session.get(url, timeout=10) as response:
+                if response.status != 200:
+                    return None
                 
-                # İndirilen dosya yolunu bul
-                file_path = ydl.prepare_filename(info)
-                # Uzantıyı mp3 olarak değiştir
-                file_path = os.path.splitext(file_path)[0] + '.mp3'
+                data = await response.json()
                 
-                if os.path.exists(file_path):
-                    return file_path
+                # En iyi ses formatını bul
+                audio_formats = [f for f in data.get('adaptiveFormats', []) 
+                               if f.get('type', '').startswith('audio')]
+                
+                if not audio_formats:
+                    return None
+                
+                # En yüksek kaliteli ses formatını seç
+                audio_format = max(audio_formats, key=lambda x: x.get('bitrate', 0))
+                audio_url = audio_format.get('url')
+                
+                if not audio_url:
+                    return None
+                
+                # Ses dosyasını indir
+                download_path = f"{Config.DOWNLOAD_DIR}/{video_id}.mp3"
+                
+                async with session.get(audio_url, timeout=60) as audio_response:
+                    if audio_response.status != 200:
+                        return None
+                    
+                    # Dosyayı kaydet
+                    with open(download_path, 'wb') as f:
+                        while True:
+                            chunk = await audio_response.content.read(8192)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                
+                if os.path.exists(download_path):
+                    return download_path
                 
                 return None
         
         except Exception as e:
-            print(f"YouTube indirme hatası: {e}")
+            print(f"Invidious indirme hatası: {e}")
             return None
+    
+    async def close(self):
+        """Session'ı kapat"""
+        if self.session:
+            await self.session.close()
 
 # Global instance
 downloader = YouTubeDownloader()
@@ -116,6 +135,6 @@ async def search_youtube(query: str) -> Optional[Dict]:
     """YouTube'da ara"""
     return await downloader.search(query)
 
-async def download_audio(url: str) -> Optional[str]:
+async def download_audio(video_id: str) -> Optional[str]:
     """Ses dosyasını indir"""
-    return await downloader.download(url)
+    return await downloader.download(video_id)

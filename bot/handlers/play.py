@@ -39,8 +39,8 @@ async def play_command(client: Client, message: Message):
             f"📥 **İndiriliyor...**"
         )
         
-        # Sesi indir
-        file_path = await download_audio(result['url'])
+        # Ses dosyasını indir
+        file_path = await download_audio(result['video_id'])
         
         if not file_path:
             await status.edit_text("❌ **İndirme hatası!** Lütfen tekrar deneyin.")
