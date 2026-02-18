@@ -4,7 +4,6 @@ from bot.utils.queue_manager import QueueManager
 
 queue_manager = QueueManager()
 
-@Client.on_message(filters.command("queue") & filters.group)
 async def queue_command(client: Client, message: Message):
     """/queue komutu - Mevcut kuyruğu göster"""
     chat_id = message.chat.id
@@ -34,5 +33,3 @@ async def queue_command(client: Client, message: Message):
     text += f"\n📄 **Toplam:** {len(queue)} şarkı"
     
     await message.reply_text(text)
-
-queue_command = Client.on_message(filters.command("queue") & filters.group)(queue_command)

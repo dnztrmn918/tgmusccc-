@@ -7,7 +7,6 @@ import asyncio
 # Queue manager (her grup için ayrı kuyruk)
 queue_manager = QueueManager()
 
-@Client.on_message(filters.command("play") & filters.group)
 async def play_command(client: Client, message: Message):
     """/play komutu - Müzik çal"""
     
@@ -77,5 +76,3 @@ async def play_command(client: Client, message: Message):
     
     except Exception as e:
         await status.edit_text(f"❌ **Hata:** `{str(e)}`")
-
-play_command = Client.on_message(filters.command("play") & filters.group)(play_command)
