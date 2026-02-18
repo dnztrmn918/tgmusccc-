@@ -12,6 +12,19 @@ class YouTubeDownloader:
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            'nocheckcertificate': True,
+            'ignoreerrors': False,
+            'no_color': True,
+            'age_limit': None,
+            'geo_bypass': True,
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'skip': ['dash', 'hls'],
+                    'player_skip': ['js', 'configs', 'webpage'],
+                    'player_client': ['android', 'web'],
+                }
+            },
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -28,6 +41,14 @@ class YouTubeDownloader:
                 'no_warnings': True,
                 'extract_flat': True,
                 'default_search': 'ytsearch1',
+                'nocheckcertificate': True,
+                'geo_bypass': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'web'],
+                    }
+                },
             }
             
             with yt_dlp.YoutubeDL(search_opts) as ydl:
